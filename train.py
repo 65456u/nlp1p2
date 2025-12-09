@@ -190,6 +190,14 @@ def train_model(
     criterion = nn.CrossEntropyLoss()
     best_eval = 0.
     best_iter = 0
+    # Always log/evaluate at least once, even for very short runs
+    eval_every = max(1, min(eval_every, num_iterations))
+    print_every = max(1, min(print_every, num_iterations))
+
+    if is_treelstm and shuffle_words:
+        # Tree structures cannot be shuffled without breaking transitions
+        print("Warning: shuffle_words is ignored for TreeLSTM models")
+        shuffle_words = False
     
     # Select preparation function based on model type
     if is_treelstm:
@@ -263,7 +271,23 @@ def train_model(
                     print("Loading best model")
                     ckpt = torch.load(save_path)
                     model.load_state_dict(ckpt["state_dict"])
+                elif save_path:
+                    # No checkpoint saved (e.g., no earlier eval). Save final state.
+                    torch.save({"state_dict": model.state_dict()}, save_path)
+
+                # Final dev eval to populate metrics/best if not done earlier
+                if best_iter == 0:
+                    _, _, final_dev_acc = evaluate(model, dev_data, vocab, device,
+                                                   batch_size=batch_size, is_treelstm=is_treelstm,
+                                                   shuffle_words=shuffle_words)
+                    metrics.dev_accuracies.append(final_dev_acc)
+                    best_eval = final_dev_acc
+                    best_iter = iter_i
                 
+                # If we never logged a loss (short run), store the last observed avg
+                if print_num > 0 and not metrics.train_losses:
+                    metrics.train_losses.append(train_loss / print_num)
+
                 # Final evaluation
                 _, _, train_acc = evaluate(model, train_data, vocab, device,
                                           batch_size=batch_size, is_treelstm=is_treelstm,
@@ -271,6 +295,10 @@ def train_model(
                 _, _, dev_acc = evaluate(model, dev_data, vocab, device,
                                         batch_size=batch_size, is_treelstm=is_treelstm,
                                         shuffle_words=shuffle_words)
+                metrics.dev_accuracies.append(dev_acc)
+                if dev_acc > best_eval:
+                    best_eval = dev_acc
+                    best_iter = iter_i
                 _, _, test_acc = evaluate(model, test_data, vocab, device,
                                          batch_size=batch_size, is_treelstm=is_treelstm,
                                          shuffle_words=shuffle_words)

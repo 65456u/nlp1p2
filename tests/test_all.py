@@ -343,9 +343,14 @@ class TestIntegration(unittest.TestCase):
         from data import load_data, build_vocabulary
         from train import run_experiment, ExperimentConfig
         
-        # Skip if data not available
-        data_dir = os.path.join(os.path.dirname(__file__), '..', 'trees')
-        if not os.path.exists(data_dir):
+        # Skip if data not available; try common locations
+        base_dir = os.path.dirname(__file__)
+        candidates = [
+            os.path.join(base_dir, '..', 'trees'),
+            os.path.join(base_dir, '..', 'data', 'trees')
+        ]
+        data_dir = next((c for c in candidates if os.path.exists(c)), None)
+        if data_dir is None:
             self.skipTest("Data directory not found")
         
         # Load a small amount of data
