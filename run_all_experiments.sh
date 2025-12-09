@@ -27,21 +27,30 @@ echo "=================================================="
 # Function to run experiments for a model
 run_model() {
     local model=$1
-    local extra_args=${2:-""}
+    local output_subdir=${2:-$model}
+    local extra_args=${3:-""}
     
     echo ""
     echo "=================================================="
     echo "Running experiments for: ${model}"
+    echo "Output subdir: ${output_subdir}"
     echo "=================================================="
     
-    python main.py \
-        --model ${model} \
-        --num_iters ${NUM_ITERS} \
-        --lr ${LR} \
-        --batch_size ${BATCH_SIZE} \
-        --num_repeat ${NUM_REPEAT} \
-        --output_dir ${OUTPUT_DIR}/${model} \
-        ${extra_args}
+    local cmd=(
+        python main.py
+        --model "${model}"
+        --num_iters "${NUM_ITERS}"
+        --lr "${LR}"
+        --batch_size "${BATCH_SIZE}"
+        --num_repeat "${NUM_REPEAT}"
+        --output_dir "${OUTPUT_DIR}/${output_subdir}"
+    )
+
+    if [[ -n "${extra_args}" ]]; then
+        cmd+=(${extra_args})
+    fi
+
+    "${cmd[@]}"
 }
 
 # 1. Bag of Words
@@ -56,7 +65,10 @@ run_model "deepcbow"
 # 4. LSTM (batched)
 run_model "lstm_batched"
 
-# 5. LSTM with shuffled words (to test word order importance)
+# 5. LSTM (batched) with fine-tuned embeddings
+run_model "lstm_batched" "lstm_finetuned" "--finetune"
+
+# 6. LSTM with shuffled words (to test word order importance)
 echo ""
 echo "=================================================="
 echo "Running LSTM with shuffled words (word order test)"
@@ -70,25 +82,17 @@ python main.py \
     --shuffle \
     --output_dir ${OUTPUT_DIR}/lstm_shuffled
 
-# 6. TreeLSTM
+# 7. TreeLSTM
 run_model "treelstm"
 
-# 7. TreeLSTM with node supervision
+# 8. TreeLSTM with fine-tuned embeddings
+run_model "treelstm" "treelstm_finetuned" "--finetune"
+
+# 9. TreeLSTM with node supervision
 run_model "treelstm_each_node"
 
-# 8. LSTM with fine-tuned embeddings
-echo ""
-echo "=================================================="
-echo "Running LSTM with fine-tuned embeddings"
-echo "=================================================="
-python main.py \
-    --model lstm_batched \
-    --num_iters ${NUM_ITERS} \
-    --lr ${LR} \
-    --batch_size ${BATCH_SIZE} \
-    --num_repeat ${NUM_REPEAT} \
-    --finetune \
-    --output_dir ${OUTPUT_DIR}/lstm_finetuned
+# 10. TreeLSTM with node supervision and fine-tuned embeddings
+run_model "treelstm_each_node" "treelstm_each_node_finetuned" "--finetune"
 
 # Generate summary plots and tables
 echo ""
